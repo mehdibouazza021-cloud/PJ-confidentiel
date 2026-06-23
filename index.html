@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IRS:CI - PORTAIL SÉCURISÉ</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Courier New', Courier, monospace; }
+        
+        /* Effet Écran Cathodique (CRT) global */
+        body {
+            background-color: #010502; color: #39ff14; display: flex; justify-content: center;
+            align-items: center; height: 100vh; overflow: hidden; position: relative;
+        }
+        
+        /* Lignes de balayage TV avec animation */
+        body::after {
+            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.05), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.05));
+            z-index: 9999; background-size: 100% 4px, 6px 100%; pointer-events: none;
+            animation: scanline 8s linear infinite;
+        }
+        @keyframes scanline { 0% { background-position: 0 0; } 100% { background-position: 0 100%; } }
+
+        /* Effet Flicker ajouté */
+        .terminal { animation: flicker 0.15s infinite; }
+        @keyframes flicker { 0% { opacity: 0.97; } 5% { opacity: 0.95; } 10% { opacity: 0.98; } 100% { opacity: 0.97; } }
+
+        /* Courbure de l'écran rétro */
+        .crt-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.8); z-index: 9998; pointer-events: none;
+        }
+
+        /* Boîte CMD principale */
+        .terminal {
+            width: 850px; max-width: 95%; background-color: rgba(2, 10, 4, 0.98);
+            border: 2px solid #39ff14; box-shadow: 0 0 30px rgba(57, 255, 20, 0.3); padding: 25px; position: relative;
+            transition: transform 0.1s ease, filter 0.1s ease;
+        }
+        
+        /* Verrouillage de la souris lors de l'attaque */
+        .mouse-locked { cursor: none !important; }
+
+        .header { text-align: center; border-bottom: 2px dashed #39ff14; padding-bottom: 12px; margin-bottom: 15px; }
+        .badge { display: inline-block; border: 1px solid #39ff14; padding: 2px 8px; font-size: 10px; font-weight: bold; text-transform: uppercase; margin-top: 10px; background-color: rgba(57, 255, 20, 0.1); }
+        
+        .dossier-layout { display: flex; gap: 20px; }
+        .dossier-data { flex: 1; }
+        
+        .dossier-photo-container {
+            width: 160px; height: 200px; border: 2px solid #39ff14;
+            box-shadow: 0 0 10px rgba(57, 255, 20, 0.2); overflow: hidden; position: relative;
+            background-color: #000; display: flex; justify-content: center; align-items: center;
+        }
+        .dossier-photo-container img {
+            width: 100%; height: 100%; object-fit: cover; filter: sepia(100%) hue-rotate(85deg) saturate(150%) contrast(120%);
+        }
+        .photo-overlay-text {
+            position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.75);
+            color: #ff3333; text-align: center; font-size: 9px; font-weight: bold; padding: 3px 0;
+            border-top: 1px solid #ff3333; letter-spacing: 1px;
+        }
+        #photo-censored-overlay {
+            display: none; position: absolute; top:0; left:0; width:100%; height:100%;
+            background: #200000; color: #ff3333; font-weight: bold; font-size: 14px;
+            text-align: center; justify-content: center; align-items: center;
+            border: 2px dashed #ff3333; letter-spacing: 1px; line-height: 1.2;
+        }
+
+        .section-title { font-weight: bold; color: #24a10e; border-bottom: 1px solid #24a10e; margin: 12px 0 6px 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;}
+        .info-row { margin-bottom: 6px; font-size: 12px; line-height: 1.4; opacity: 0; transform: translateY(5px); }
+        .info-label { color: #24a10e; font-weight: bold; }
+        .footer { margin-top: 20px; text-align: center; font-size: 10px; color: #1a6e0a; text-transform: uppercase; }
+        
+        #login-screen { text-align: center; }
+        #password-input {
+            background: transparent; border: 1px solid #39ff14; color: #39ff14;
+            padding: 10px; text-align: center; font-size: 18px; letter-spacing: 3px;
+            text-transform: uppercase; outline: none; margin-top: 20px; width: 80%;
+        }
+        #password-input:focus { box-shadow: 0 0 10px rgba(57, 255, 20, 0.5); }
+        #error-msg { color: #ff3333; font-size: 12px; margin-top: 10px; height: 15px; }
+        
+        #boot-screen { display: none; font-size: 13px; text-align: left; line-height: 1.6; color: #39ff14; }
+        #decrypted-content { display: none; }
+
+        #security-popup {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background-color: #1a0000; border: 3px solid #ff3333; color: #ff3333; padding: 20px;
+            box-shadow: 0 0 30px rgba(255, 51, 51, 0.8); z-index: 1010; text-align: center; width: 400px;
+            animation: flash 1s infinite;
+        }
+        #security-popup button {
+            background: #ff3333; color: #000; border: none; padding: 5px 15px; margin-top: 15px;
+            font-weight: bold; cursor: pointer; font-family: monospace;
+        }
+        @keyframes flash {
+            0%, 100% { border-color: #ff3333; box-shadow: 0 0 30px rgba(255, 51, 51, 0.8); }
+            50% { border-color: transparent; box-shadow: none; }
+        }
+
+        #countdown-display { color: #ff3333; font-weight: bold; font-size: 14px; margin-top: 10px; display: none; text-align: center; }
+        
+        /* Écran Interception Hacker */
+        #interception-screen { 
+            display: none; text-align: left; color: #ffffff; font-size: 16px; line-height: 1.8; padding: 20px; min-height: 440px; position: relative;
+        }
+        .cursor { display: inline-block; width: 10px; height: 18px; background-color: #ffffff; animation: blink 0.8s infinite; vertical-align: middle; margin-left: 2px; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        /* Alerte Souris rouge */
+        #mouse-warning {
+            display: none; color: #ff3333; font-weight: bold; font-size: 11px; margin-top: 15px; text-align: center; animation: pulse 0.5s infinite alternate;
+        }
+        @keyframes pulse { 0% { opacity: 0.4; } 100% { opacity: 1; } }
+
+        /* 📸 Flash Web Cam */
+        #webcam-flash {
+            position: absolute; top:0; left:0; width:100%; height:100%; background: #ffffff;
+            opacity: 0; z-index: 1050; pointer-events: none;
+        }
+
+        .visible-row { opacity: 1; transform: translateY(0); transition: opacity 0.2s ease, transform 0.2s ease; }
+        .corrupted-text { color: #ff3333 !important; font-weight: bold; font-family: monospace; letter-spacing: 1px; }
+        
+        .glitch-active {
+            transform: translate(calc(Math.random() * 8px - 4px), calc(Math.random() * 8px - 4px));
+            filter: hue-rotate(90deg) contrast(160%) brightness(1.2);
+            border-color: #ff3333 !important;
+            box-shadow: 0 0 40px rgba(255, 51, 51, 0.8) !important;
+        }
+        .critical-degrade { animation: tvBug 0.12s infinite alternate; }
+        @keyframes tvBug {
+            0% { transform: translate(3px, -2px) skewX(2deg); filter: contrast(200%) brightness(1.5) blur(0.5px); opacity: 0.85; }
+            50% { transform: translate(-2px, 2px) skewX(-3deg); filter: contrast(150%) sepia(50%) hue-rotate(120deg); opacity: 0.6; }
+            100% { transform: translate(1px, 1px) skewX(5deg); filter: contrast(300%) saturate(0%); opacity: 0.9; }
+        }
+    </style>
+</head>
+<body oncontextmenu="return false;" onselectstart="return false;" ondragstart="return false;">
+
+<div class="crt-screen"></div>
+
+<div class="terminal" id="main-terminal">
+    <div id="login-screen">
+        <div class="header">
+            <h1>IRS:CI - INTERFACE DE DÉCRYPTAGE</h1>
+            <p>VÉRIFICATION DES ANTÉCÉDENTS FÉDÉRAUX - ACCÈS SÉCURISÉ</p>
+            <span class="badge" style="border-color: #ff3333; color: #ff3333;">DONNÉES CHIFFRÉES</span>
+        </div>
+        <p>ENTREZ LA CLÉ DE DÉCRYPTAGE POUR ACCÉDER AUX DOSSIERS MILITAIRES CLASSIFIÉS :</p>
+        <input type="password" id="password-input" placeholder="•••••" maxlength="5" autocomplete="off">
+        <div id="error-msg"></div>
+    </div>
+
+    <div id="boot-screen">
+        <div id="progress-container" style="width: 100%; height: 8px; border: 1px solid #39ff14; margin-bottom: 10px;">
+            <div id="progress-bar" style="width: 0%; height: 100%; background: #39ff14; transition: width 0.3s;"></div>
+        </div>
+        <div id="boot-log"></div>
+    </div>
+
+    <div id="decrypted-content">
+        <div class="header" id="doc-header">
+            <h1>DEPT OF THE NAVY - MAXIMUM SECURITY ARCHIVE</h1>
+            <p>OFFICE OF NAVAL INTELLIGENCE / DETACHMENT CORONADO</p>
+            <span class="badge">HABILITATION : TOP-SECRET // EYES ONLY [IRS:CI EXEMPTION]</span>
+            <div id="countdown-display">⚠️ SÉCURITÉ : PURGE DES DONNÉES DANS <span id="timer">60</span>s</div>
+        </div>
+        
+        <div class="dossier-layout">
+            <div class="dossier-data" id="main-data-box">
+                <div class="section-title" style="border:none; margin:0; padding:0; height:0; overflow:hidden;"></div>
+                <div class="section-title" id="t1">// CIVIL STATUS & BIOMETRICS</div>
+                <div class="info-row" id="r1"><span class="info-label">IDENTITY :</span> BLACKWELL, Devon</div>
+                <div class="info-row" id="r2"><span class="info-label">SERIAL NUMBER :</span> <span id="w1">USN-7749-DX</span></div>
+                <div class="info-row" id="r3"><span class="info-label">RANK :</span> Petty Officer Second Class (<span id="w2">PO2 / E-5</span>)</div>
+                <div class="info-row" id="r4"><span class="info-label">ASSIGNMENT :</span> <span id="w3">NSW Group 1 (SEALs)</span> // Team [CLASSIFIED]</div>
+                <div class="info-row" id="r5"><span class="info-label">SERVICE PERIOD :</span> 6 Years Active Duty // Honorable Discharge granted.</div>
+                <div class="info-row" id="r6"><span class="info-label">PHYSICAL METRICS :</span> 192cm / 95kg / Blood Type: AB+</div>
+            </div>
+            
+            <div class="dossier-photo-container" id="photo-box" style="opacity:0;">
+                <img src="devon_seals.jpg" alt="Photo Devon Blackwell" id="military-photo">
+                <div id="photo-censored-overlay">DATA<br>ERASED</div>
+                <div class="photo-overlay-text">TACTICAL CAPTURE</div>
+            </div>
+        </div>
+
+        <div class="section-title" id="t2">// COMPÉTENCES STRATÉGIQUES & EXTRADITION</div>
+        <div class="info-row" id="r7"><span class="info-label">TACTICAL :</span> Reconnaissance avancée en milieu hostile, sabotage d'infrastructures et interception réseau de niveau militaire.</div>
+        <div class="info-row" id="r8"><span class="info-label">FINANCIAL INTELLIGENCE :</span> Analyse de registres cryptés, démantèlement de circuits de blanchiment d'argent asymétriques, traque de prête-noms et rétro-ingénierie de transactions frauduleuses transfrontalières.</div>
+
+        <div class="section-title" id="t3">// EXPÉDITIONS OPÉRATIONNELLES & HISTORIQUE [RESTREINT]</div>
+        <div class="info-row" id="r9"><span class="info-label">OP: BLACK HORIZON (2022) :</span> Infiltration et gel des avoirs d'une organisation criminelle maritime. Extraction réussie de données financières clés de 14 comptes offshore suspects.</div>
+        <div class="info-row" id="r10"><span class="info-label">DISCIPLINE :</span> Aucun blâme. Note de commandement : Autonome, méthodique, tendance marquée à agir de sang-froid en cas d'isolement tactique.</div>
+
+        <div class="section-title" id="t4">// ÉVALUATION PSYCHOLOGIQUE & MÉDICALE</div>
+        <div class="info-row" id="r11"><span class="info-label">PSYCHOLOGICAL PROFILE :</span> Résilience mentale extrême. Ne cède à aucune menace ou tentative de corruption extérieure. Diagnostic formel : <span id="w5">Incorruptible</span>.</div>
+        
+        <div class="info-row" id="r12" style="margin-top: 10px; border-top: 1px solid #39ff14; padding-top: 8px; color: #24a10e; font-size: 11px;">
+            LOG : Procédure d'effacement automatique initialisée à distance par l'administration centrale.
+        </div>
+    </div>
+
+    <div id="interception-screen">
+        <div id="webcam-flash"></div>
+        <span id="hacker-text"></span><span class="cursor" id="hacker-cursor"></span>
+        <div id="mouse-warning">> ERREUR : COMMANDE DE SOURIS INTERCEPTÉE. RESTEZ IMMOBILE.</div>
+        <div id="final-disconnect" style="display:none; color:#ff3333; font-weight:bold; margin-top:30px; font-size:14px;"></div>
+    </div>
+
+    <div class="footer" id="terminal-footer">
+        ATTENTION : DOCUMENT CONFIDENTIEL DE L'ADMINISTRATION FÉDÉRALE DES ÉTATS-UNIS
+    </div>
+</div>
+
+<div id="security-popup">
+    <h3>⚠️ INTRUSION SYSTÈME ⚠️</h3>
+    <p style="margin-top: 10px; font-size: 14px;">ACCÈS NON AUTORISÉ DÉTECTÉ</p>
+    <p style="font-size: 12px; color: #ff8888;">Protocole de purge des données en cours...</p>
+    <button onclick="closePopup()">IGNORER L'ALERTE</button>
+</div>
+
+<script>
+    // Ajout de la fermeture de contexte audio
+    window.addEventListener('beforeunload', () => { if(audioCtx) audioCtx.close(); });
+
+    const input = document.getElementById('password-input');
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let bgNoiseNode = null;
+
+    function startBackgroundNoise() {
+        if (bgNoiseNode) return;
+        const bufferSize = 2 * audioCtx.sampleRate;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 0.05 - 0.025;
+        const source = audioCtx.createBufferSource();
+        source.buffer = buffer; source.loop = true;
+        const filter = audioCtx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 150;
+        const gain = audioCtx.createGain(); gain.gain.value = 0.15;
+        source.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+        source.start(); bgNoiseNode = source;
+    }
+
+    input.addEventListener('focus', () => { if (audioCtx.state === 'suspended') audioCtx.resume(); startBackgroundNoise(); }, { once: true });
+
+    const errorMsg = document.getElementById('error-msg');
+    const loginScreen = document.getElementById('login-screen');
+    const bootScreen = document.getElementById('boot-screen');
+    const decryptedContent = document.getElementById('decrypted-content');
+    const popup = document.getElementById('security-popup');
+    const timerDisplay = document.getElementById('countdown-display');
+    const timerSpan = document.getElementById('timer');
+    const mainTerminal = document.getElementById('main-terminal');
+    const terminalFooter = document.getElementById('terminal-footer');
+    const interceptionScreen = document.getElementById('interception-screen');
+    const hackerTextSpan = document.getElementById('hacker-text');
+    const photoOverlay = document.getElementById('photo-censored-overlay');
+    const flashDiv = document.getElementById('webcam-flash');
+    const disconnectDiv = document.getElementById('final-disconnect');
+    const mouseWarning = document.getElementById('mouse-warning');
+
+    let timeLeft = 60;
+    let popupInterval, countdownInterval, corruptionInterval, titleInterval, heartbeatInterval;
+    let corruptedFields = { w1: false, w2: false, w3: false, w5: false };
+    let lockMouseTriggered = false;
+    const originalTexts = { w1: "USN-7749-DX", w2: "PO2 / E-5", w3: "NSW Group 1 (SEALs)", w5: "Incorruptible" };
+    let totalDestructionActive = false;
+    let textNodesToDestroy = [];
+
+    function playKeySound() { const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination); osc.type = 'triangle'; osc.frequency.setValueAtTime(120, audioCtx.currentTime); gain.gain.setValueAtTime(0.12, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05); osc.start(); osc.stop(audioCtx.currentTime + 0.06); }
+    function playBackspaceSound() { const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination); osc.type = 'square'; osc.frequency.setValueAtTime(90, audioCtx.currentTime); gain.gain.setValueAtTime(0.15, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08); osc.start(); osc.stop(audioCtx.currentTime + 0.09); }
+    function playSuccessSound() { const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination); osc.type = 'sine'; osc.frequency.setValueAtTime(800, audioCtx.currentTime); osc.frequency.setValueAtTime(1200, audioCtx.currentTime + 0.1); gain.gain.setValueAtTime(0.2, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3); osc.start(); osc.stop(audioCtx.currentTime + 0.3); }
+    function playDataStreamSound() { const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination); osc.type = 'sine'; osc.frequency.setValueAtTime(Math.random() * 400 + 300, audioCtx.currentTime); gain.gain.setValueAtTime(0.03, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08); osc.start(); osc.stop(audioCtx.currentTime + 0.08); }
+    function playHeartbeatSound(speedMs) { let isFirstBeat = true; heartbeatInterval = setInterval(() => { const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination); osc.type = 'sine'; osc.frequency.setValueAtTime(isFirstBeat ? 55 : 48, audioCtx.currentTime); gain.gain.setValueAtTime(isFirstBeat ? 0.5 : 0.3, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (isFirstBeat ? 0.12 : 0.18)); osc.start(); osc.stop(audioCtx.currentTime + 0.2); isFirstBeat = !isFirstBeat; }, speedMs / 2); }
+    function playCameraShutterSound() { const bufferSize = 0.1 * audioCtx.sampleRate; const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate); const output = noiseBuffer.getChannelData(0); for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 2 - 1; } const noise = audioCtx.createBufferSource(); noise.buffer = noiseBuffer; const noiseGain = audioCtx.createGain(); noiseGain.gain.setValueAtTime(0.3, audioCtx.currentTime); noiseGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08); noise.connect(noiseGain); noiseGain.connect(audioCtx.destination); noise.start(); const osc = audioCtx.createOscillator(); const oscGain = audioCtx.createGain(); osc.type = 'sawtooth'; osc.frequency.setValueAtTime(3000, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.15); oscGain.gain.setValueAtTime(0.2, audioCtx.currentTime); oscGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15); osc.connect(oscGain); oscGain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.16); }
+    let alarmNodes = [];
+    function startMilitaryAlarm() { stopMilitaryAlarm(); const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination); osc.type = 'sine'; osc.frequency.setValueAtTime(90, audioCtx.currentTime); let time = audioCtx.currentTime; for (let i = 0; i < 60; i++) { osc.frequency.linearRampToValueAtTime(80, time + 0.7); osc.frequency.linearRampToValueAtTime(140, time + 1.4); time += 1.4; } gain.gain.setValueAtTime(0.4, audioCtx.currentTime); osc.start(); alarmNodes = [osc, gain]; }
+    function stopMilitaryAlarm() { if (alarmNodes.length > 0) { try { alarmNodes[0].stop(); } catch(e) {} alarmNodes = []; } }
+    let tvNoiseNode = null;
+    function startTVNoiseSound() { if (tvNoiseNode) return; const bufferSize = 2 * audioCtx.sampleRate; const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate); const output = noiseBuffer.getChannelData(0); for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 2 - 1; } const whiteNoise = audioCtx.createBufferSource(); whiteNoise.buffer = noiseBuffer; whiteNoise.loop = true; const noiseGain = audioCtx.createGain(); noiseGain.gain.setValueAtTime(0.09, audioCtx.currentTime); whiteNoise.connect(noiseGain); noiseGain.connect(audioCtx.destination); whiteNoise.start(); tvNoiseNode = [whiteNoise, noiseGain]; }
+    function stopTVNoiseSound() { if (tvNoiseNode) { try { tvNoiseNode[0].stop(); } catch(e) {} tvNoiseNode = null; } }
+
+    document.body.addEventListener('mousemove', () => { if (lockMouseTriggered) { mouseWarning.style.display = 'block'; playBackspaceSound(); } });
+    input.addEventListener('keydown', function() { if (audioCtx.state === 'suspended') { audioCtx.resume(); } playKeySound(); });
+    input.addEventListener('input', function() { if (input.value.toUpperCase() === 'BRAVO') { errorMsg.innerText = ""; loginScreen.style.display = 'none'; triggerBootSequence(); } else if (input.value.length === 5) { errorMsg.innerText = "CLÉ INVALIDE - ACCÈS REFUSÉ"; input.value = ""; } });
+
+    function triggerBootSequence() {
+        bootScreen.style.display = 'block';
+        const progressBar = document.getElementById('progress-bar');
+        const bootLog = document.getElementById('boot-log');
+        const logs = ["> INITIALIZING DECRYPTOR...", "> CONNECTING TO SECURE NODE...", "> BYPASSING FIREWALLS...", "> QUANTUM HANDSHAKE...", "> DECRYPTING..."];
+        let currentLine = 0;
+        function printLogLine() {
+            if (currentLine < logs.length) {
+                bootLog.innerHTML += logs[currentLine] + "<br>";
+                progressBar.style.width = ((currentLine + 1) / logs.length) * 100 + "%";
+                playDataStreamSound(); currentLine++; setTimeout(printLogLine, 600);
+            } else {
+                setTimeout(() => { bootScreen.style.display = 'none'; decryptedContent.style.display = 'block'; playSuccessSound(); triggerTypewriterEffect(); }, 400);
+            }
+        }
+        printLogLine();
+    }
+
+    function triggerTypewriterEffect() {
+        const rows = document.querySelectorAll('.info-row, .section-title');
+        let index = 0;
+        function showNextRow() {
+            if (index < rows.length) {
+                rows[index].classList.add('visible-row');
+                if(rows[index].innerText.trim().length > 0) { playKeySound(); }
+                index++; setTimeout(showNextRow, 80);
+            } else { document.getElementById('photo-box').style.opacity = '1'; prepareDestructionNodes(); startSecurityProtocols(); }
+        }
+        showNextRow();
+    }
+
+    function prepareDestructionNodes() { const targets = document.querySelectorAll('.info-row, .section-title, h1, p, .badge'); targets.forEach(el => { if (el.id !== "countdown-display" && el.id !== "timer") { textNodesToDestroy.push({ element: el, original: el.innerText }); } }); }
+    function startSecurityProtocols() { corruptionInterval = setInterval(animateTextEffects, 80); let altTitle = false; titleInterval = setInterval(() => { document.title = altTitle ? "⚠️ SÉCURITÉ ⚠️" : "PURGE EN COURS"; altTitle = !altTitle; }, 1000); setTimeout(() => { timerDisplay.style.display = 'block'; triggerGlitchEffect(); showPopup(); popupInterval = setInterval(showPopup, 15000); }, 15000); countdownInterval = setInterval(() => { timeLeft--; timerSpan.innerText = timeLeft; if (timeLeft === 45) { corruptedFields.w1 = true; } else if (timeLeft === 30) { corruptedFields.w2 = true; corruptedFields.w3 = true; } else if (timeLeft === 15) { corruptedFields.w5 = true; triggerGlitchEffect(); } if (timeLeft === 4) { totalDestructionActive = true; mainTerminal.classList.add('critical-degrade'); photoOverlay.style.display = 'flex'; startTVNoiseSound(); } if (timeLeft <= 0) { clearInterval(popupInterval); clearInterval(countdownInterval); clearInterval(corruptionInterval); clearInterval(titleInterval); stopTVNoiseSound(); triggerInterceptionFinal(); } }, 1000); }
+    function triggerGlitchEffect() { let count = 0; const glitchTimer = setInterval(() => { mainTerminal.classList.toggle('glitch-active'); count++; if (count > 6) { clearInterval(glitchTimer); mainTerminal.classList.remove('glitch-active'); } }, 60); }
+    function getRandomChar() { const chars = "!@#$%^&*()_+~`|}{[]:;?><,./-="; return chars[Math.floor(Math.random() * chars.length)]; }
+    function animateTextEffects() { if (!totalDestructionActive) { for (let key in corruptedFields) { if (corruptedFields[key]) { const element = document.getElementById(key); element.classList.add('corrupted-text'); let newText = ""; for (let i = 0; i < originalTexts[key].length; i++) { if (originalTexts[key][i] === " ") newText += " "; else newText += getRandomChar(); } element.innerText = newText; } } } else { textNodesToDestroy.forEach(item => { let mutated = ""; for(let i=0; i<item.original.length; i++) { if (item.original[i] === " " || item.original[i] === "\n") mutated += item.original[i]; else mutated += getRandomChar(); } item.element.style.color = "#ff3333"; item.element.innerText = mutated; }); } }
+    function showPopup() { popup.style.display = 'block'; startMilitaryAlarm(); }
+    function closePopup() { popup.style.display = 'none'; stopMilitaryAlarm(); }
+    function triggerInterceptionFinal() { stopMilitaryAlarm(); popup.style.display = 'none'; decryptedContent.style.display = 'none'; document.body.classList.add('mouse-locked'); lockMouseTriggered = true; mainTerminal.classList.remove('critical-degrade'); mainTerminal.style.backgroundColor = '#000000'; mainTerminal.style.borderColor = '#111111'; mainTerminal.style.boxShadow = 'none'; terminalFooter.style.display = 'none'; interceptionScreen.style.display = 'block'; let altTitle2 = false; titleInterval = setInterval(() => { document.title = altTitle2 ? "JE TE VOIS..." : "REGARDE LA CAM..."; altTitle2 = !altTitle2; }, 500); playHeartbeatSound(1000); const fakeIp = `192.168.${Math.floor(Math.random()*254)}.${Math.floor(Math.random()*254)}`; const sequenceActions = [{ type: 'write', text: "Vous n'êtes pas des" }, { type: 'pause', ms: 350 }, { type: 'delete', count: 3 }, { type: 'pause', ms: 150 }, { type: 'write', text: "censé être là...\n\nCe dossier n'existe pas. Ces informations confidentielles sur Devon Blackwlel" }, { type: 'pause', ms: 400 }, { type: 'delete', count: 4 }, { type: 'pause', ms: 250 }, { type: 'write', text: "well n'existent plus.\n\nFermez cette fenêtre. Nous savons déjà ou" }, { type: 'pause', ms: 450 }, { type: 'delete', count: 1 }, { type: 'pause', ms: 200 }, { type: 'write', text: "ù vous êtes.\n\n" }, { type: 'pause', ms: 600, speedUpHeartbeat: 500 }, { type: 'write', text: `> TRACKING SATELLITE INITIALIZED...\n> REMOTE_IP: ${fakeIp}\n> PROXIMITY: LOCAL NODE VERIFIED.\n\n` }, { type: 'pause', ms: 800, speedUpHeartbeat: 300 }, { type: 'write', text: "Souriez. C'est capturé." }]; let currentSequence = 0; let charIndex = 0; setTimeout(() => { executeNextAction(); }, 2000); function executeNextAction() { if (currentSequence >= sequenceActions.length) { setTimeout(triggerCameraFlashEffect, 600); return; } let action = sequenceActions[currentSequence]; if (action.speedUpHeartbeat) { clearInterval(heartbeatInterval); playHeartbeatSound(action.speedUpHeartbeat); } if (action.type === 'write') { if (charIndex < action.text.length) { let char = action.text[charIndex]; if (char === "\n") { hackerTextSpan.innerHTML += "<br>"; } else { hackerTextSpan.innerHTML += char; } if (char !== " " && char !== "\n") playKeySound(); charIndex++; let delay = Math.random() * (120 - 50) + 50; if (char === "." || char === "?" || char === ":") delay = 700; setTimeout(executeNextAction, delay); } else { charIndex = 0; currentSequence++; executeNextAction(); } } else if (action.type === 'delete') { if (action.count > 0) { let currentHtml = hackerTextSpan.innerHTML; hackerTextSpan.innerHTML = currentHtml.substring(0, currentHtml.length - 1); playBackspaceSound(); action.count--; setTimeout(executeNextAction, 100); } else { currentSequence++; executeNextAction(); } } else if (action.type === 'pause') { setTimeout(() => { currentSequence++; executeNextAction(); }, action.ms); } } }
+    function triggerCameraFlashEffect() { clearInterval(heartbeatInterval); playCameraShutterSound(); flashDiv.style.opacity = '1'; let opacityVal = 1; const flashFade = setInterval(() => { opacityVal -= 0.1; flashDiv.style.opacity = opacityVal; if (opacityVal <= 0) { clearInterval(flashFade); triggerFinalDisconnectionMessage(); } }, 20); }
+    function triggerFinalDisconnectionMessage() { setTimeout(() => { clearInterval(titleInterval); document.title = "CONNEXION PERDUE"; document.getElementById('hacker-cursor').style.display = 'none'; mouseWarning.style.display = 'none'; disconnectDiv.innerText = "> CONNECTION TERMINATED BY REMOTE HOST.\n> LOCAL LOGS WIPED SUCESSFULLY."; disconnectDiv.style.display = 'block'; playBackspaceSound(); }, 1500); }
+</script>
+</body>
+</html>
